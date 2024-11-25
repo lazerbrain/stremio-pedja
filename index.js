@@ -5,8 +5,6 @@ const https = require("https");
 const AdmZip = require("adm-zip");
 const iconv = require("iconv-lite");
 
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
-
 const axiosInstance = axios.create({
 	httpsAgent: new https.Agent({ rejectUnauthorized: false }),
 	headers: {
@@ -90,12 +88,13 @@ function detectEncoding(buffer) {
 
 async function downloadAndProcessSubtitle(downloadUrl) {
 	try {
-		const proxyUrl = `${CORS_PROXY}${downloadUrl}`;
-		const response = await axiosInstance.get(proxyUrl, {
+		const response = await axiosInstance.get(downloadUrl, {
 			responseType: "arraybuffer",
 			maxRedirects: 5,
 			headers: {
+				...axiosInstance.defaults.headers, // zadržavamo postojeća zaglavlja
 				Referer: "https://titlovi.com",
+				Origin: "https://titlovi.com",
 			},
 		});
 
@@ -153,10 +152,9 @@ async function downloadAndProcessSubtitle(downloadUrl) {
 async function searchSubtitles(query) {
 	try {
 		const encodedQuery = encodeURIComponent(query);
-		const originalUrl = `https://titlovi.com/titlovi/?prijevod=${encodedQuery}`;
-		const proxyUrl = `${CORS_PROXY}${originalUrl}`;
+		const url = `https://titlovi.com/titlovi/?prijevod=${encodedQuery}`;
 
-		const response = await axiosInstance.get(proxyUrl);
+		const response = await axiosInstance.get(url);
 		const $ = cheerio.load(response.data);
 
 		const subtitles = [];

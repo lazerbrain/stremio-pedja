@@ -5,6 +5,8 @@ const https = require("https");
 const AdmZip = require("adm-zip");
 const iconv = require("iconv-lite");
 
+const PROXY_URL = "https://titlovi-proxy.onrender.com/proxy";
+
 const axiosInstance = axios.create({
 	httpsAgent: new https.Agent({ rejectUnauthorized: false }),
 	headers: {
@@ -78,7 +80,8 @@ function detectEncoding(buffer) {
 
 async function downloadAndProcessSubtitle(downloadUrl) {
 	try {
-		const response = await axiosInstance.get(downloadUrl, {
+		const proxyDownloadUrl = `${PROXY_URL}${downloadUrl}`;
+		const response = await axiosInstance.get(proxyDownloadUrl, {
 			responseType: "arraybuffer",
 			maxRedirects: 5,
 			headers: {
@@ -140,7 +143,8 @@ async function downloadAndProcessSubtitle(downloadUrl) {
 async function searchSubtitles(query) {
 	try {
 		const encodedQuery = encodeURIComponent(query);
-		const url = `https://titlovi.com/titlovi/?prijevod=${encodedQuery}`;
+		//const url = `https://titlovi.com/titlovi/?prijevod=${encodedQuery}`;
+		const url = `${PROXY_URL}/titlovi/?prijevod=${encodedQuery}`;
 
 		const response = await axiosInstance.get(url);
 		const $ = cheerio.load(response.data);

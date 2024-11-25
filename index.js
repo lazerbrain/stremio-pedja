@@ -5,7 +5,7 @@ const https = require("https");
 const AdmZip = require("adm-zip");
 const iconv = require("iconv-lite");
 
-const CORS_PROXY = "https://cors-proxy.io/";
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 const axiosInstance = axios.create({
 	httpsAgent: new https.Agent({ rejectUnauthorized: false }),

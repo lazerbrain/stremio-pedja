@@ -4,17 +4,60 @@ const axios = require("axios");
 const https = require("https");
 const AdmZip = require("adm-zip");
 const iconv = require("iconv-lite");
+const { HttpsProxyAgent } = require("https-proxy-agent");
 
-const PROXY_URL = "https://titlovi-proxy.onrender.com/proxy";
+// Lista besplatnih proxy-ja koje možemo koristiti
+const PROXY_LIST = [
+	"http://178.32.101.200:80",
+	"http://185.162.231.166:80",
+	"http://91.92.209.67:8088",
+	// dodaćemo još proxy-ja iz regiona
+];
+
+// Funkcija koja bira random proxy
+function getRandomProxy() {
+	const randomIndex = Math.floor(Math.random() * PROXY_LIST.length);
+	return PROXY_LIST[randomIndex];
+}
+
+function createProxyAgent() {
+	return new HttpsProxyAgent(getRandomProxy());
+}
 
 const axiosInstance = axios.create({
-	httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+	httpsAgent: createProxyAgent(),
 	headers: {
 		"User-Agent":
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+		Accept:
+			"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+		"Accept-Language": "sr-RS,sr;q=0.9,en-US;q=0.8,en;q=0.7",
 		Cookie: "sid=1",
 	},
-	timeout: 10000,
+	timeout: 15000,
+	retry: 3,
+	retryDelay: 1000,
+});
+
+axiosInstance.interceptors.response.use(undefined, async (error) => {
+	const config = error.config;
+
+	if (!config || !config.retry) {
+		return Promise.reject(error);
+	}
+
+	config.retryCount = config.retryCount || 0;
+
+	if (config.retryCount >= config.retry) {
+		return Promise.reject(error);
+	}
+
+	config.retryCount += 1;
+	config.httpsAgent = createProxyAgent();
+
+	return new Promise((resolve) =>
+		setTimeout(() => resolve(axiosInstance(config)), config.retryDelay)
+	);
 });
 
 const manifest = {
@@ -80,12 +123,12 @@ function detectEncoding(buffer) {
 
 async function downloadAndProcessSubtitle(downloadUrl) {
 	try {
-		const proxyDownloadUrl = `${PROXY_URL}${downloadUrl}`;
-		const response = await axiosInstance.get(proxyDownloadUrl, {
+		const response = await axiosInstance.get(downloadUrl, {
 			responseType: "arraybuffer",
 			maxRedirects: 5,
 			headers: {
 				Referer: "https://titlovi.com",
+				Origin: "https://titlovi.com",
 			},
 		});
 
@@ -143,8 +186,7 @@ async function downloadAndProcessSubtitle(downloadUrl) {
 async function searchSubtitles(query) {
 	try {
 		const encodedQuery = encodeURIComponent(query);
-		//const url = `https://titlovi.com/titlovi/?prijevod=${encodedQuery}`;
-		const url = `${PROXY_URL}/titlovi/?prijevod=${encodedQuery}`;
+		const url = `https://titlovi.com/titlovi/?prijevod=${encodedQuery}`;
 
 		const response = await axiosInstance.get(url);
 		const $ = cheerio.load(response.data);
@@ -243,6 +285,8 @@ module.exports = builder.getInterface();
 if (require.main === module) {
 	const { serveHTTP } = require("stremio-addon-sdk");
 	const port = process.env.PORT || 3000;
+
+	console.log("Starting with proxy:", getRandomProxy());
 
 	serveHTTP(builder.getInterface(), { port })
 		.then(() => {
